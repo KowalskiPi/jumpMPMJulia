@@ -76,10 +76,10 @@ function solve_explicit_dynamics_2D(grid,solids,basis,alg::MUSL,output,fixes,dat
 		funcsLin         = [0., 0., 0., 0.]
 	end
 
-    # if ( typeof(problem.output) <: PyPlotOutput )
-	#   pyFig_RealTime = PyPlot.figure(problem.output.figTitle,
-    #                            figsize=problem.output.figSize, edgecolor="white", facecolor="white")
-    # end
+    if ( typeof(output) <: PyPlotOutput )
+	  pyFig_RealTime = PyPlot.figure(output.figTitle,
+                               figsize=output.figSize, edgecolor="white", facecolor="white")
+    end
 
   # time-independent Dirichlet boundary conditions on grid/solids
   fix_Dirichlet_grid(grid,data,ghostcell=ghostcell)
@@ -572,9 +572,15 @@ ghostcell = false
 	end
 
 	if (counter%output.interval == 0)
-		plotParticles_2D(output,solids,[grid.lx, grid.ly],
-					 [grid.nodeCountX, grid.nodeCountY],counter)
-		compute(fixes,t)
+		if ( typeof(output) <: PyPlotOutput )
+			plotParticles(output,solids,[grid.lx, grid.ly],
+						[grid.nodeCountX, grid.nodeCountY],counter)
+			compute(fixes,t)
+		else
+			plotParticles_2D(output,solids,[grid.lx, grid.ly],
+						[grid.nodeCountX, grid.nodeCountY],counter)
+			compute(fixes,t)
+		end
 	end
 
     t       += dtime

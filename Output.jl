@@ -10,6 +10,8 @@
 #
 # -----------------------------------------------------------------------
 
+ENV["MPLBACKEND"] = "TkAgg"
+
 module Output
 import Glob
 import PyPlot
@@ -83,6 +85,8 @@ end
 function plotParticles(plot::PyPlotOutput,solids,
                        lims::Vector{Float64},ncells::Vector{Int64},counter::Int64)
     fileName = string(plot.dir,"$(Int(counter)).pdf")
+	PyPlot.ion()  # Enable interactive mode
+	pyFig = PyPlot.figure(plot.figTitle,figsize=plot.figSize)
 	#array_x         = [toXArray(solids[i]) for i = 1:length(solids)]
 	#array_y         = [toYArray(solids[i]) for i = 1:length(solids)]
 	array_x         = Vector{Float64}(undef,0)
@@ -119,16 +123,16 @@ function plotParticles(plot::PyPlotOutput,solids,
 	pyPlot01[:set_ylim](0.0, ylim)
 	# pyPlot01[:set_xlabel]("")
 	# pyPlot01[:set_ylabel]("")
-	pyPlot01[:grid](b=true, which="both", color="gray", linestyle="-", linewidth=0.5)
+	pyPlot01[:grid](visible=true, which="both", color="gray", linestyle="-", linewidth=0.5)
 	pyPlot01[:set_axisbelow](true)
 	pyPlot01[:set_xticks]([])# empty to have no major ticks and grids
 	pyPlot01[:set_xticks](collect(0.0:dxx:xlim),minor=true)
 	pyPlot01[:set_yticks]([])# empty to have no major ticks and grids
 	pyPlot01[:set_yticks](collect(0.0:dyy:ylim),minor=true)
 
-	#PyPlot.show()
+	PyPlot.draw()
 	PyPlot.pause(0.05)
-	PyPlot.savefig(fileName, bbox_inches="tight")
+	# PyPlot.savefig(fileName, bbox_inches="tight")
 	PyPlot.clf()
 	PyPlot.gcf()
 end
@@ -613,6 +617,6 @@ function plotGrid(plot::VTKOutput,grid::Grid3D,counter)
 end
 
 export OutputType, PyPlotOutput, OvitoOutput, VTKOutput
-export plotGrid,plotParticles_2D, plotParticles_3D, writeParticles, plotGrid
+export plotGrid, plotParticles, plotParticles_2D, plotParticles_3D, writeParticles, plotGrid
 
 end

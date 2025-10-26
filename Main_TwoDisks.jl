@@ -24,8 +24,8 @@ using StaticArrays   # if not yet installed, in REPL, do import Pkg and Pkd.add(
 using BenchmarkTools
 using TimerOutputs
 
-#include("./Grid.jl")
-#include("./Problem.jl")
+# include("./Grid.jl")
+# include("./Problem.jl")
 
 using Grid
 using Solid
@@ -103,7 +103,7 @@ function main()
 	 output2  = OvitoOutput(interval,"twodisks-mpm/",["pressure"])
 	 fix      = EnergiesFix(solids,"twodisks-mpm/energies.txt")
 	 bodyforce = ConstantBodyForce2D([0.,0.])
- 	data["bodyforce"] =  bodyforce
+ 	 data["bodyforce"] =  bodyforce
     algo1    = USL(1e-9)
     algo2    = MUSL(1.)
 
@@ -112,16 +112,17 @@ function main()
  #    reset_timer!()
 	# @time solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,Tf,dtime)
  #    print_timer()
-
-    solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,data)
-    #solve_explicit_dynamics_2D(grid,solids,basis,algo2,output2,fix,Tf,dtime)
+    solve_explicit_dynamics_2D(grid,solids,basis,algo1,output1,fix,data)
+   #  solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,data)
+   #  solve_explicit_dynamics_2D(grid,solids,basis,algo2,output2,fix,Tf,dtime)
 
    # plotting energies
    pyFig_RealTime = PyPlot.figure("MPM 2Disk FinalPlot", figsize=(8/2.54, 4/2.54))
 	PyPlot.clf()
 	pyPlot01 = PyPlot.gca()
+   # PyPlot.show()
 	PyPlot.subplots_adjust(left=0.15, bottom=0.25, right=0.65)
-	pyPlot01[:grid](b=true, which="both", color="gray", linestyle="-", linewidth=0.5)
+	pyPlot01[:grid](true, which="both", color="gray", linestyle="-", linewidth=0.5)
 	pyPlot01[:set_axisbelow](true)
 	pyPlot01[:set_xlim](0.0, 4.0)
 	pyPlot01[:set_ylim](0.0, 3.0)
@@ -130,12 +131,13 @@ function main()
 	pyPlot01[:set_xticks](collect(0.0:1.0:4.0))
 	pyPlot01[:tick_params](axis="both", which="major", labelsize=8)
 	pyPlot01[:set_yticks](collect(0.0:1.0:3.0))
-	PyPlot.plot(fix.recordTime, c="blue", fix.kinEnergy, "-", label="\$ K \$", linewidth=1.0)
-	#PyPlot.hold(true)
-	PyPlot.plot(fix.recordTime, c="red", fix.strEnergy, "-", label="\$ U \$", linewidth=1.0)
-	PyPlot.plot(fix.recordTime, c="green", fix.kinEnergy + fix.strEnergy, "-", label="\$ K+U \$", linewidth=1.0)
+	PyPlot.plot(fix.recordTime, color="blue", fix.kinEnergy, "-", label="\$ K \$", linewidth=1.0)
+	# PyPlot.hold(true)
+	PyPlot.plot(fix.recordTime, color="red", fix.strEnergy, "-", label="\$ U \$", linewidth=1.0)
+	PyPlot.plot(fix.recordTime, color="green", fix.kinEnergy + fix.strEnergy, "-", label="\$ K+U \$", linewidth=1.0)
 	PyPlot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=8)
 	PyPlot.savefig("plot_2Disk_Julia.pdf")
+   PyPlot.show()
 
 end
 
