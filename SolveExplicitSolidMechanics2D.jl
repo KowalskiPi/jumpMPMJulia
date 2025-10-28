@@ -22,570 +22,578 @@ using Fix
 # Modified Update Stress Last
 ######################################################################
 
-function solve_explicit_dynamics_2D(grid,solids,basis,alg::MUSL,output,fixes,data)
-	Tf            = data["total_time"]::Float64
-	dtime         = data["dt"]        ::Float64
-	t             = data["time"]      ::Float64
+function solve_explicit_dynamics_2D(grid, solids, basis, alg::MUSL, output, fixes, data)
+    Tf = data["total_time"]::Float64
+    dtime = data["dt"]::Float64
+    t = data["time"]::Float64
 
 
-	if haskey(data, "bodyforce") == true
-		bodyforce     = data["bodyforce"]
-	end
-
-	ghostcell = false
-
-	if haskey(data, "ghostcell") == true
-		ghostcell = true
-	end
-
-    counter       = 0
-    Identity      = UniformScaling(1.)
-	solidCount    = length(solids)
-
-	nodalMass      = grid.mass
-	massMatrix     = grid.M
-	vx0            = grid.vx0
-	vy0 = grid.vy0
-	gvx = grid.vx
-	gvy  = grid.vy
-	px0 = grid.px0
-	py0 = grid.py0
-	nodalMomentum  = grid.momentum
-	nodalMomentum0 = grid.momentum0
-	nodalMomentum2 = grid.momentum2
-	nodalForce     = grid.force
-
-	#vel_grad      = zeros(Float64,2,2)
-	D             = SMatrix{2,2}(0., 0., 0., 0.) #zeros(Float64,2,2)
-	vvp           = zeros(2)
-	body          = zeros(2)
-
-	alpha         = alg.alpha
-
-	# allocate memory for grid basis and grads once
-	show(basis)
-	nearPoints,funcs, ders = initialise(grid,basis)
-
-	if ( typeof(basis) <: CPDIQ4Basis )
-		# nearPoints = Vector{Int64}(undef,16)
-		# [nearPoints[i]=0 for i=1:16]
-	 #  funcs = zeros(16)
-		# ders  = zeros(2,16)
-
-		nearPointsLin    = [0, 0, 0, 0]
-		funcsLin         = [0., 0., 0., 0.]
-	end
-
-    if ( typeof(output) <: PyPlotOutput )
-	  pyFig_RealTime = PyPlot.figure(output.figTitle,
-                               figsize=output.figSize, edgecolor="white", facecolor="white")
+    if haskey(data, "bodyforce") == true
+        bodyforce = data["bodyforce"]
     end
 
-  # time-independent Dirichlet boundary conditions on grid/solids
-  fix_Dirichlet_grid(grid,data,ghostcell=ghostcell)
+    ghostcell = false
 
-	while t < Tf
-	    @printf("Solving step: %d %f \n", counter, t)
-	    # ===========================================
-	    # reset grid data
-	    # ===========================================
-		 massMatrix        = zeros(Float64,grid.nodeCount,grid.nodeCount)
-	     @inbounds for i = 1:grid.nodeCount
-		  nodalMass[i]      = 0.
-		  vx0[i]   = 0.
-		  vy0[i]   = 0.
-		  gvx[i]    = 0.
-		  gvy[i]    = 0.
-		  px0[i]   = 0.
-		  py0[i]   = 0.
-		  nodalMomentum0[i] = @SVector[0., 0.]
-		  nodalMomentum2[i] = @SVector[0., 0.]
-		  nodalForce[i]     = @SVector[0., 0.]
-	    end
+    if haskey(data, "ghostcell") == true
+        ghostcell = true
+    end
 
-	    # ===========================================
-	    # particle to grid
-	    # ===========================================
-		#println(problem.bodyforce.g)
-		for s = 1:solidCount
-			solid  = solids[s]
-			xx     = solid.pos
-			mm     = solid.mass
-			vv     = solid.velocity
-			vol    = solid.volume
-			stress = solid.stress
-			F      = solid.deformationGradient
-			# loop over all the particles
-		  	@inbounds for ip = 1:solid.parCount
-		        support   = getShapeAndGradient(nearPoints,funcs,ders,ip, grid, solid,basis)
-		        fVolume   = vol[ip]
-		        fMass     = mm[ip]
-		        vp        = vv[ip]
-		        sigma     = stress[ip]
-			    	bodyforce(body,xx[ip],t)
-					# println(nearPoints)
-					# println(support)
-					#println(body)
-				# loop over the grid nodes in the support of the particle "ip"
-				@inbounds for i = 1:support
-					id    = nearPoints[i]; # index of node ‘i’
-					Ni    = funcs[i]
-					dNi   = @view ders[:,i]
-					Nim   = Ni * fMass
-					# mass, momentum, internal force and external force
-					nodalMass[id]       +=  Nim
-					for j = 1:support
-						idj = nearPoints[j]
-						Nj    = funcs[j]
-						massMatrix[id,idj] += Nim * Nj
-					end
-					nodalMomentum0[id]  +=  Nim * vp
-					px0[id]             += Nim * vp[1]
-					py0[id]             += Nim * vp[2]
-	        		nodalForce[id]      += -fVolume * @SVector[sigma[1,1] * dNi[1] + sigma[1,2] * dNi[2],
-													           sigma[2,1] * dNi[1] + sigma[2,2] * dNi[2]] + fMass * body * Ni
-				end
-		  	end
-		end
+    counter = 0
+    Identity = UniformScaling(1.)
+    solidCount = length(solids)
+
+    nodalMass = grid.mass
+    massMatrix = grid.M
+    vx0 = grid.vx0
+    vy0 = grid.vy0
+    gvx = grid.vx
+    gvy = grid.vy
+    px0 = grid.px0
+    py0 = grid.py0
+    nodalMomentum = grid.momentum
+    nodalMomentum0 = grid.momentum0
+    nodalMomentum2 = grid.momentum2
+    nodalForce = grid.force
+
+    #vel_grad      = zeros(Float64,2,2)
+    D = SMatrix{2,2}(0., 0., 0., 0.) #zeros(Float64,2,2)
+    vvp = zeros(2)
+    body = zeros(2)
+
+    alpha = alg.alpha
+
+    # allocate memory for grid basis and grads once
+    show(basis)
+    nearPoints, funcs, ders = initialise(grid, basis)
+
+    if (typeof(basis) <: CPDIQ4Basis)
+        # nearPoints = Vector{Int64}(undef,16)
+        # [nearPoints[i]=0 for i=1:16]
+        #  funcs = zeros(16)
+        # ders  = zeros(2,16)
+
+        nearPointsLin = [0, 0, 0, 0]
+        funcsLin = [0., 0., 0., 0.]
+    end
+
+    if (typeof(output) <: PyPlotOutput)
+        pyFig_RealTime = PyPlot.figure(output.figTitle,
+            figsize=output.figSize, edgecolor="white", facecolor="white")
+    end
+
+    # time-independent Dirichlet boundary conditions on grid/solids
+    fix_Dirichlet_grid(grid, data, ghostcell=ghostcell)
+
+    while t < Tf
+        @printf("Solving step: %d %f \n", counter, t)
+        # ===========================================
+        # reset grid data
+        # ===========================================
+        massMatrix = zeros(Float64, grid.nodeCount, grid.nodeCount)
+        @inbounds for i = 1:grid.nodeCount
+            nodalMass[i] = 0.
+            vx0[i] = 0.
+            vy0[i] = 0.
+            gvx[i] = 0.
+            gvy[i] = 0.
+            px0[i] = 0.
+            py0[i] = 0.
+            nodalMomentum0[i] = @SVector[0., 0.]
+            nodalMomentum2[i] = @SVector[0., 0.]
+            nodalForce[i] = @SVector[0., 0.]
+        end
+
+        # ===========================================
+        # particle to grid
+        # ===========================================
+        #println(problem.bodyforce.g)
+        for s = 1:solidCount
+            solid = solids[s]
+            xx = solid.pos
+            mm = solid.mass
+            vv = solid.velocity
+            vol = solid.volume
+            stress = solid.stress
+            F = solid.deformationGradient
+            # loop over all the particles
+            @inbounds for ip = 1:solid.parCount
+                support = getShapeAndGradient(nearPoints, funcs, ders, ip, grid, solid, basis)
+                fVolume = vol[ip]
+                fMass = mm[ip]
+                vp = vv[ip]
+                sigma = stress[ip]
+                bodyforce(body, xx[ip], t)
+                # println(nearPoints)
+                # println(support)
+                #println(body)
+                # loop over the grid nodes in the support of the particle "ip"
+                @inbounds for i = 1:support
+                    id = nearPoints[i] # index of node ‘i’
+                    Ni = funcs[i]
+                    dNi = @view ders[:, i]
+                    Nim = Ni * fMass
+                    # mass, momentum, internal force and external force
+                    nodalMass[id] += Nim
+                    for j = 1:support
+                        idj = nearPoints[j]
+                        Nj = funcs[j]
+                        massMatrix[id, idj] += Nim * Nj
+                    end
+                    nodalMomentum0[id] += Nim * vp
+                    px0[id] += Nim * vp[1]
+                    py0[id] += Nim * vp[2]
+                    nodalForce[id] += -fVolume * @SVector[sigma[1, 1] * dNi[1] + sigma[1, 2] * dNi[2],
+                        sigma[2, 1] * dNi[1] + sigma[2, 2] * dNi[2]] + fMass * body * Ni
+                end
+            end
+        end
         ϵ = 0.1
-		bmassMat = ϵ*Diagonal(nodalMass) + (1-ϵ)*massMatrix
+        bmassMat = ϵ * Diagonal(nodalMass) + (1 - ϵ) * massMatrix
 
-		for i=1:grid.nodeCount
-		  if nodalMass[i] == 0.
-			  bmassMat[i,i] = 1.0
-		  end
-		end
+        for i = 1:grid.nodeCount
+            if nodalMass[i] == 0.
+                bmassMat[i, i] = 1.0
+            end
+        end
 
         # solving: M * vx0 = px0
 
-		vx0 = bmassMat \ px0
-		vy0 = bmassMat \ py0
+        vx0 = bmassMat \ px0
+        vy0 = bmassMat \ py0
 
-		fx0 = zeros(Float64,grid.nodeCount)
-		fy0 = zeros(Float64,grid.nodeCount)
-		for i=1:grid.nodeCount
-			fx0[i] = nodalForce[i][1]
-			fy0[i] = nodalForce[i][2]
-		end
+        fx0 = zeros(Float64, grid.nodeCount)
+        fy0 = zeros(Float64, grid.nodeCount)
+        for i = 1:grid.nodeCount
+            fx0[i] = nodalForce[i][1]
+            fy0[i] = nodalForce[i][2]
+        end
 
-		# solving M * ( vx - vx0 ) = Δt*fx0
+        # solving M * ( vx - vx0 ) = Δt*fx0
 
-		gvx = vx0 + bmassMat \ (dtime*fx0)
-		gvy = vy0 + bmassMat \ (dtime*fy0)
+        gvx = vx0 + bmassMat \ (dtime * fx0)
+        gvy = vy0 + bmassMat \ (dtime * fy0)
 
-		# ===========================================
-		# update grid
-		# ===========================================
+        # ===========================================
+        # update grid
+        # ===========================================
 
-		@inbounds for i=1:grid.nodeCount
-		    nodalMomentum[i] = nodalMomentum0[i] + nodalForce[i] * dtime
-	        # apply Dirichet boundary conditions
+        @inbounds for i = 1:grid.nodeCount
+            nodalMomentum[i] = nodalMomentum0[i] + nodalForce[i] * dtime
+            # apply Dirichet boundary conditions
 
-	        fixed_dirs       = @view grid.fixedNodes[:,i]
-	        if fixed_dirs[1] == 1
-				nodalMomentum0[i] = setindex(nodalMomentum0[i],0.,1)
-	   		    nodalMomentum[i]  = setindex(nodalMomentum[i], 0.,1)
-	        end
-	        if fixed_dirs[2] == 1
-				nodalMomentum0[i] = setindex(nodalMomentum0[i],0.,2)
-			    nodalMomentum[i]  = setindex(nodalMomentum[i], 0.,2)
-	        end
-		end
+            fixed_dirs = @view grid.fixedNodes[:, i]
+            if fixed_dirs[1] == 1
+                nodalMomentum0[i] = setindex(nodalMomentum0[i], 0., 1)
+                nodalMomentum[i] = setindex(nodalMomentum[i], 0., 1)
+            end
+            if fixed_dirs[2] == 1
+                nodalMomentum0[i] = setindex(nodalMomentum0[i], 0., 2)
+                nodalMomentum[i] = setindex(nodalMomentum[i], 0., 2)
+            end
+        end
 
-	    # ===========================================
-	    # grid to particle 1: particle vel update only
-	    # ===========================================
+        # ===========================================
+        # grid to particle 1: particle vel update only
+        # ===========================================
 
-		for s = 1:solidCount
-			  	solid = solids[s]
-			  	xx    = solid.pos
-			  	mm    = solid.mass
-			  	vv    = solid.velocity
-			  	@inbounds @simd for ip = 1:solid.parCount
-					vp0     = vv[ip]
-					mp      = mm[ip]
-					vx     = 0.
-					vy     = 0.
-			        support = getShapeFunctions(nearPoints,funcs,ip, grid, solid,basis)
+        for s = 1:solidCount
+            solid = solids[s]
+            xx = solid.pos
+            mm = solid.mass
+            vv = solid.velocity
+            @inbounds @simd for ip = 1:solid.parCount
+                vp0 = vv[ip]
+                mp = mm[ip]
+                vx = 0.
+                vy = 0.
+                support = getShapeFunctions(nearPoints, funcs, ip, grid, solid, basis)
 
-					for i =1:support
-						in = nearPoints[i]; # index of node ‘i’
-						Ni = funcs[i]
-						mI = nodalMass[in]
-						if ( mI > 0 )
-							mii = Ni / mI
-							#vx += mii * (nodalMomentum[in][1] - alpha*nodalMomentum0[in][1])
-							#vy += mii * (nodalMomentum[in][2] - alpha*nodalMomentum0[in][2])
-							vx += Ni * (gvx[in] - alpha*vx0[in])
-							vy += Ni * (gvy[in] - alpha*vy0[in])
-						end
-					end
-					vv[ip] = setindex(vv[ip],alpha*vp0[1] + vx,1)
-					vv[ip] = setindex(vv[ip],alpha*vp0[2] + vy,2)
-					# mapping the updated particle vel back to the node
-					# for i in 1:support
-					# 	in = nearPoints[i] # index of node ‘i’
-					#     nodalMomentum2[in]  += funcs[i] * mp * vv[ip]
-					# end
-			  	end
-	    end
-	    # # apply Dirichet boundary conditions
-	    # @inbounds @simd for i = 1:grid.nodeCount
-	    #    # apply Dirichet boundary conditions
+                for i = 1:support
+                    in = nearPoints[i] # index of node ‘i’
+                    Ni = funcs[i]
+                    mI = nodalMass[in]
+                    if (mI > 0)
+                        mii = Ni / mI
+                        #vx += mii * (nodalMomentum[in][1] - alpha*nodalMomentum0[in][1])
+                        #vy += mii * (nodalMomentum[in][2] - alpha*nodalMomentum0[in][2])
+                        vx += Ni * (gvx[in] - alpha * vx0[in])
+                        vy += Ni * (gvy[in] - alpha * vy0[in])
+                    end
+                end
+                vv[ip] = setindex(vv[ip], alpha * vp0[1] + vx, 1)
+                vv[ip] = setindex(vv[ip], alpha * vp0[2] + vy, 2)
+                # mapping the updated particle vel back to the node
+                # for i in 1:support
+                # 	in = nearPoints[i] # index of node ‘i’
+                #     nodalMomentum2[in]  += funcs[i] * mp * vv[ip]
+                # end
+            end
+        end
+        # # apply Dirichet boundary conditions
+        # @inbounds @simd for i = 1:grid.nodeCount
+        #    # apply Dirichet boundary conditions
         # fixed_dirs       = @view grid.fixedNodes[:,i]
         # if fixed_dirs[1] == 1
-   		#     nodalMomentum2[i]  = setindex(nodalMomentum2[i], 0.,1)
+        #     nodalMomentum2[i]  = setindex(nodalMomentum2[i], 0.,1)
         # end
         # if fixed_dirs[2] == 1
-		# 	    nodalMomentum2[i]  = setindex(nodalMomentum2[i], 0.,2)
+        # 	    nodalMomentum2[i]  = setindex(nodalMomentum2[i], 0.,2)
         # end
-		#end
+        #end
 
-	    # ===========================================
-	    # particle to grid 2:
-	    # ===========================================
-		@inbounds for s = 1:solidCount
-		  	solid = solids[s]
-		  	xx    = solid.pos
-		  	mm    = solid.mass
-		  	#vv    = solid.velocity
-		  	vol   = solid.volume
-		  	vol0  = solid.volumeInitial
-		  	F     = solid.deformationGradient
-		  	mat   = solid.mat
-		  	stress = solid.stress
-		  	strain = solid.strain
-		  	@inbounds @simd for ip = 1:solid.parCount
-				support   = getShapeAndGradient(nearPoints,funcs,ders,ip, grid, solid,basis)
-		        #vel_grad .= 0. #zeros(Float64,2,2)
-				vel_grad = SMatrix{2,2}(0., 0., 0., 0.)
-				xxp = xx[ip]
-				for i = 1:support
-					in = nearPoints[i]; # index of node ‘i’
-					Ni = funcs[i]
-					dNi= @view ders[:,i]
-					m  = nodalMass[in]
-					if ( m > 0.)
-						#vI         = nodalMomentum2[in] /m
-						vI         = [gvx[in],gvy[in]]
-					    #xxp       += (Ni * nodalMomentum[in]/m) * dtime
-					    xxp       += (Ni * vI) * dtime
-					    #  SMatrix{2,2}(1,2,3,4) => the first column is 1,2; 2nd col: 3,4
-				      vel_grad  += SMatrix{2,2}(dNi[1]*vI[1], dNi[1]*vI[2],
-   										                  dNi[2]*vI[1], dNi[2]*vI[2])
-				    end
-				end
-				xx[ip]      = xxp
-	      		D           = 0.5 * (vel_grad + vel_grad')
-	      		strain[ip]  += dtime * D
-				F[ip]       *= (Identity + vel_grad*dtime)
-				J            = det(F[ip])
-				if ( J < 0. )
-					@printf("Troubled particle: %f %f \n", xx[ip][1], xx[ip][2])
-					println(F[ip])
-					@error("J is negative\n")
-				end
-				vol[ip]     = J * vol0[ip]
-				#@timeit "3"  update_stress!(stress[ip],mat,strain[ip],F[ip],J,ip)
-				stress[ip] = update_stress!(stress[ip],mat,strain[ip],D,F[ip],J,ip,dtime)
-		  	end
-		end
+        # ===========================================
+        # particle to grid 2:
+        # ===========================================
+        @inbounds for s = 1:solidCount
+            solid = solids[s]
+            xx = solid.pos
+            mm = solid.mass
+            #vv    = solid.velocity
+            vol = solid.volume
+            vol0 = solid.volumeInitial
+            F = solid.deformationGradient
+            mat = solid.mat
+            stress = solid.stress
+            strain = solid.strain
+            @inbounds @simd for ip = 1:solid.parCount
+                support = getShapeAndGradient(nearPoints, funcs, ders, ip, grid, solid, basis)
+                #vel_grad .= 0. #zeros(Float64,2,2)
+                vel_grad = SMatrix{2,2}(0., 0., 0., 0.)
+                xxp = xx[ip]
+                for i = 1:support
+                    in = nearPoints[i] # index of node ‘i’
+                    Ni = funcs[i]
+                    dNi = @view ders[:, i]
+                    m = nodalMass[in]
+                    if (m > 0.)
+                        #vI         = nodalMomentum2[in] /m
+                        vI = [gvx[in], gvy[in]]
+                        #xxp       += (Ni * nodalMomentum[in]/m) * dtime
+                        xxp += (Ni * vI) * dtime
+                        #  SMatrix{2,2}(1,2,3,4) => the first column is 1,2; 2nd col: 3,4
+                        vel_grad += SMatrix{2,2}(dNi[1] * vI[1], dNi[1] * vI[2],
+                            dNi[2] * vI[1], dNi[2] * vI[2])
+                    end
+                end
+                xx[ip] = xxp
+                D = 0.5 * (vel_grad + vel_grad')
+                strain[ip] += dtime * D
+                F[ip] *= (Identity + vel_grad * dtime)
+                J = det(F[ip])
+                if (J < 0.)
+                    @printf("Troubled particle: %f %f \n", xx[ip][1], xx[ip][2])
+                    println(F[ip])
+                    @error("J is negative\n")
+                end
+                vol[ip] = J * vol0[ip]
+                #@timeit "3"  update_stress!(stress[ip],mat,strain[ip],F[ip],J,ip)
+                stress[ip] = update_stress!(stress[ip], mat, strain[ip], D, F[ip], J, ip, dtime)
+            end
+        end
 
-		# if CPDI, do extra thing here
+        # if CPDI, do extra thing here
 
-		if ( typeof(basis) <: CPDIQ4Basis )
-			@inbounds for s = 1:solidCount
-				corner_coords = solids[s].nodes
-				@inbounds for c = 1:length(corner_coords)
-				  #xc = corner_coords[c]
-				  #println(xc)
-				  getShapeFuncs(nearPointsLin,funcsLin, corner_coords[c], grid, solids[s], LinearBasis())
-				  for i = 1:length(nearPointsLin)
-					  in = nearPointsLin[i]; # index of node ‘i’
-					  Ni = funcsLin[i]
-					  mI = nodalMass[in]
-					  if mI > 0.
-				        #corner_coords[c] += (Ni * nodalMomentum[in] / mI) * dtime
-				        corner_coords[c] += (Ni * nodalMomentum2[in] / mI) * dtime
-					  end
-				  end
-				  # println(xc)
-				  # println(corner_coords[c])
-				  # println("haha\n\n")
-			    end
-		    end
-	    end
+        if (typeof(basis) <: CPDIQ4Basis)
+            @inbounds for s = 1:solidCount
+                corner_coords = solids[s].nodes
+                @inbounds for c = 1:length(corner_coords)
+                    #xc = corner_coords[c]
+                    #println(xc)
+                    getShapeFuncs(nearPointsLin, funcsLin, corner_coords[c], grid, solids[s], LinearBasis())
+                    for i = 1:length(nearPointsLin)
+                        in = nearPointsLin[i] # index of node ‘i’
+                        Ni = funcsLin[i]
+                        mI = nodalMass[in]
+                        if mI > 0.
+                            #corner_coords[c] += (Ni * nodalMomentum[in] / mI) * dtime
+                            corner_coords[c] += (Ni * nodalMomentum2[in] / mI) * dtime
+                        end
+                    end
+                    # println(xc)
+                    # println(corner_coords[c])
+                    # println("haha\n\n")
+                end
+            end
+        end
 
-		if (counter%output.interval == 0)
-			plotParticles_2D(output,solids,[grid.lx, grid.ly],
-			             [grid.nodeCountX, grid.nodeCountY],counter)
-			compute(fixes,t)
-	  end
+        if (counter % output.interval == 0)
+            plotParticles_2D(output, solids, [grid.lx, grid.ly],
+                [grid.nodeCountX, grid.nodeCountY], counter)
+            compute(fixes, t)
+        end
 
-	    t       += dtime
-	    counter += 1
+        t += dtime
+        counter += 1
     end
-	closeFile(fixes)
+    closeFile(fixes)
 end
 
 ######################################################################
 # Update Stress Last
 ######################################################################
 
-function solve_explicit_dynamics_2D(grid,solids,basis,alg::USL,output,fixes,data)
+function solve_explicit_dynamics_2D(grid, solids, basis, alg::USL, output, fixes, data)
 
-  Tf    = data["total_time"]::Float64
-	dtime = data["dt"]        ::Float64
-	t     = data["time"]      ::Float64
-  bodyforce     = data["bodyforce"]
-ghostcell = false
-  if haskey(data, "ghostcell") == true
-		ghostcell = true
-	end
+    Tf = data["total_time"]::Float64
+    dtime = data["dt"]::Float64
+    t = data["time"]::Float64
+    bodyforce = data["bodyforce"]
+    ghostcell = false
+    if haskey(data, "ghostcell") == true
+        ghostcell = true
+    end
 
-  counter = 0
+    counter = 0
 
-  Identity       = UniformScaling(1.)
-	solidCount     = length(solids)
-	nodalMass      = grid.mass
-	nodalMomentum0 = grid.momentum0
-	nodalMomentum  = grid.momentum
-	nodalForce     = grid.force
+    Identity = UniformScaling(1.)
+    solidCount = length(solids)
+    nodalMass = grid.mass
+    nodalMomentum0 = grid.momentum0
+    nodalMomentum = grid.momentum
+    nodalForce = grid.force
 
-	body          = zeros(2)
+    body = zeros(2)
 
-  D              = SMatrix{2,2}(0., 0., 0., 0.) #zeros(Float64,2,2)
-	linBasis       = LinearBasis()
-	nearPointsLin  = [0,0,0,0]
+    D = SMatrix{2,2}(0., 0., 0., 0.) #zeros(Float64,2,2)
+    linBasis = LinearBasis()
+    nearPointsLin = [0, 0, 0, 0]
 
     # pre_allocating arrays for temporary variable
 
-	nearPoints,funcs, ders = initialise(grid,basis)
+    nearPoints, funcs, ders = initialise(grid, basis)
 
-	if ( typeof(basis) <: CPDIQ4Basis )
-		nearPointsLin    = [0, 0, 0, 0]
-		funcsLin         = [0., 0., 0., 0.]
-	end
-
-  # time-independent Dirichlet boundary conditions on grid/solids
-  fix_Dirichlet_grid(grid,data,ghostcell=ghostcell)
-
-  while t < Tf
-
-    @printf("Solving step: %d%f \n", counter, t)
-
-    # ===========================================
-    # reset grid data
-    # ===========================================
-
-    @inbounds for i = 1:grid.nodeCount
-	  nodalMass[i]      = 0.
-	  nodalMomentum0[i] =  @SVector [0., 0.]
-	  nodalForce[i]     =  @SVector [0., 0.]
+    if (typeof(basis) <: CPDIQ4Basis)
+        nearPointsLin = [0, 0, 0, 0]
+        funcsLin = [0., 0., 0., 0.]
     end
 
-    # ===========================================
-    # particle to grid (deformable solids)
-    # ===========================================
+    # time-independent Dirichlet boundary conditions on grid/solids
+    fix_Dirichlet_grid(grid, data, ghostcell=ghostcell)
 
-	@inbounds for s = 1:solidCount
-		solid  = solids[s]
-		# deformable solids only
-		if solid.rigid continue end
-		xx     = solid.pos
-		mm     = solid.mass
-		vv     = solid.velocity
-		vol    = solid.volume
-		stress = solid.stress
+    while t < Tf
 
-	  	@inbounds for ip = 1:solid.parCount
-	        #getShapeAndGradient(nearPoints,funcs,ders,xx[ip], grid)
-			support   = getShapeAndGradient(nearPoints,funcs,ders,ip, grid, solid,basis)
-	        fVolume   = vol[ip]
-	        fMass     = mm[ip]
-	        vp        = vv[ip]
-	        sigma     = stress[ip]
-	        	bodyforce(body,xx[ip],t)
-			#body      = problem.bodyforce(xx[ip],t)
-			#println(nearPoints)
-			@inbounds for i = 1:support
-				in    = nearPoints[i]; # index of node 'i'
-				Ni    = funcs[i]
-				dNi   = @view ders[:,i]
-				Nim   = Ni * fMass
-				# mass, momentum, internal force and external force
-				nodalMass[in]      += Nim
-				nodalMomentum0[in] += Nim * vp #+ vgrad*(grid.pos[in]-xx[ip]))
-				nodalForce[in]     += -fVolume * @SVector[sigma[1,1] * dNi[1] + sigma[1,2] * dNi[2],
-													     sigma[2,1] * dNi[1] + sigma[2,2] * dNi[2]] + fMass * body * Ni
-			end
-	  	end
-	end
+        @printf("Solving step: %d%f \n", counter, t)
 
-	# ===========================================
-	# update grid
-	# ===========================================
+        # ===========================================
+        # reset grid data
+        # ===========================================
 
-	@inbounds for i=1:grid.nodeCount
-		nodalMomentum[i] = nodalMomentum0[i] + nodalForce[i] * dtime
-        # apply Dirichet boundary conditions
-          # apply Dirichet boundary conditions
-        fixed_dirs       = @view grid.fixedNodes[:,i]
-        if fixed_dirs[1] == 1
-			nodalMomentum0[i] = setindex(nodalMomentum0[i],0.,1)
-   		    nodalMomentum[i]  = setindex(nodalMomentum[i], 0.,1)
+        @inbounds for i = 1:grid.nodeCount
+            nodalMass[i] = 0.
+            nodalMomentum0[i] = @SVector [0., 0.]
+            nodalForce[i] = @SVector [0., 0.]
         end
-        if fixed_dirs[2] == 1
-			nodalMomentum0[i] = setindex(nodalMomentum0[i],0.,2)
-			nodalMomentum[i]  = setindex(nodalMomentum[i], 0.,2)
+
+        # ===========================================
+        # particle to grid (deformable solids)
+        # ===========================================
+
+        @inbounds for s = 1:solidCount
+            solid = solids[s]
+            # deformable solids only
+            if solid.rigid
+                continue
+            end
+            xx = solid.pos
+            mm = solid.mass
+            vv = solid.velocity
+            vol = solid.volume
+            stress = solid.stress
+
+            @inbounds for ip = 1:solid.parCount
+                #getShapeAndGradient(nearPoints,funcs,ders,xx[ip], grid)
+                support = getShapeAndGradient(nearPoints, funcs, ders, ip, grid, solid, basis)
+                fVolume = vol[ip]
+                fMass = mm[ip]
+                vp = vv[ip]
+                sigma = stress[ip]
+                bodyforce(body, xx[ip], t)
+                #body      = problem.bodyforce(xx[ip],t)
+                #println(nearPoints)
+                @inbounds for i = 1:support
+                    in = nearPoints[i] # index of node 'i'
+                    Ni = funcs[i]
+                    dNi = @view ders[:, i]
+                    Nim = Ni * fMass
+                    # mass, momentum, internal force and external force
+                    nodalMass[in] += Nim
+                    nodalMomentum0[in] += Nim * vp #+ vgrad*(grid.pos[in]-xx[ip]))
+                    nodalForce[in] += -fVolume * @SVector[sigma[1, 1] * dNi[1] + sigma[1, 2] * dNi[2],
+                        sigma[2, 1] * dNi[1] + sigma[2, 2] * dNi[2]] + fMass * body * Ni
+                end
+            end
         end
-	end
 
-	# ===========================================
-	# particle to grid (rigid solids)
-	# ===========================================
+        # ===========================================
+        # update grid
+        # ===========================================
 
-	@inbounds for s = 1:solidCount
-		solid  = solids[s]
-		# deformable solids only
-		if !solid.rigid continue end
-		xx     = solid.pos
-		vex     = solid.mat.vx
-		vey     = solid.mat.vy
-		@inbounds for ip = 1:solid.parCount
-			getAdjacentGridPoints(nearPointsLin,xx[ip],grid,linBasis)
-#			println(nearPoints)
-			@inbounds for i = 1:4
-				id                  = nearPointsLin[i]; # index of node 'i'
-				mi                  = nodalMass[id]
-				if solid.mat.fixed
-				  nodalMomentum[id]   = setindex(nodalMomentum[id],0.,1)
-				  nodalMomentum[id]   = setindex(nodalMomentum[id],0.,2)
-  				  nodalMomentum0[id]  = setindex(nodalMomentum0[id],0.,1)
-  				  nodalMomentum0[id]  = setindex(nodalMomentum0[id],0.,2)
-			    else
-					if vex != 0.
-					  nodalMomentum[id]   = setindex(nodalMomentum[id], mi*vex,1)
-					  nodalMomentum0[id]  = setindex(nodalMomentum0[id],mi*vex,1)
-				    end
-					if vey != 0.
-					  nodalMomentum[id]   = setindex(nodalMomentum[id], mi*vey,2)
-					  nodalMomentum0[id]  = setindex(nodalMomentum0[id],mi*vey,2)
-					end
-				end
-				#println(nodalMomentum)
-			end
-		end
-	end
+        @inbounds for i = 1:grid.nodeCount
+            nodalMomentum[i] = nodalMomentum0[i] + nodalForce[i] * dtime
+            # apply Dirichet boundary conditions
+            # apply Dirichet boundary conditions
+            fixed_dirs = @view grid.fixedNodes[:, i]
+            if fixed_dirs[1] == 1
+                nodalMomentum0[i] = setindex(nodalMomentum0[i], 0., 1)
+                nodalMomentum[i] = setindex(nodalMomentum[i], 0., 1)
+            end
+            if fixed_dirs[2] == 1
+                nodalMomentum0[i] = setindex(nodalMomentum0[i], 0., 2)
+                nodalMomentum[i] = setindex(nodalMomentum[i], 0., 2)
+            end
+        end
 
-    # ===========================================
-    # grid to particle (deformable solids)
-    # ===========================================
+        # ===========================================
+        # particle to grid (rigid solids)
+        # ===========================================
 
-    @inbounds for s = 1:solidCount
-		# only deformable solids here
-	  	solid = solids[s]
-		if solid.rigid continue end
+        @inbounds for s = 1:solidCount
+            solid = solids[s]
+            # deformable solids only
+            if !solid.rigid
+                continue
+            end
+            xx = solid.pos
+            vex = solid.mat.vx
+            vey = solid.mat.vy
+            @inbounds for ip = 1:solid.parCount
+                getAdjacentGridPoints(nearPointsLin, xx[ip], grid, linBasis)
+                #			println(nearPoints)
+                @inbounds for i = 1:4
+                    id = nearPointsLin[i] # index of node 'i'
+                    mi = nodalMass[id]
+                    if solid.mat.fixed
+                        nodalMomentum[id] = setindex(nodalMomentum[id], 0., 1)
+                        nodalMomentum[id] = setindex(nodalMomentum[id], 0., 2)
+                        nodalMomentum0[id] = setindex(nodalMomentum0[id], 0., 1)
+                        nodalMomentum0[id] = setindex(nodalMomentum0[id], 0., 2)
+                    else
+                        if vex != 0.
+                            nodalMomentum[id] = setindex(nodalMomentum[id], mi * vex, 1)
+                            nodalMomentum0[id] = setindex(nodalMomentum0[id], mi * vex, 1)
+                        end
+                        if vey != 0.
+                            nodalMomentum[id] = setindex(nodalMomentum[id], mi * vey, 2)
+                            nodalMomentum0[id] = setindex(nodalMomentum0[id], mi * vey, 2)
+                        end
+                    end
+                    #println(nodalMomentum)
+                end
+            end
+        end
 
-	  	xx    = solid.pos
-	  	mm    = solid.mass
-	  	vv    = solid.velocity
-	  	vol   = solid.volume
-	  	vol0  = solid.volumeInitial
-	  	F     = solid.deformationGradient
-	  	mat   = solid.mat
-	  	stress = solid.stress
-	  	strain = solid.strain
+        # ===========================================
+        # grid to particle (deformable solids)
+        # ===========================================
 
-	  	@inbounds for ip = 1:solid.parCount
-			support   = getShapeAndGradient(nearPoints,funcs,ders,ip, grid, solid,basis)
-	        vel_grad  = SMatrix{2,2}(0., 0., 0., 0.)
-			vvp       = vv[ip]
-			xxp       = xx[ip]
-			for i = 1:support
-				in = nearPoints[i]; # index of node 'i'
-				Ni = funcs[i]
-				dNi= @view ders[:,i]
-				mI = nodalMass[in]
-			    if (mI > alg.tolerance)
-					invM       = 1.0 / mI
-					vI         = nodalMomentum[in] * invM
-					vvp       += Ni * (nodalMomentum[in] - nodalMomentum0[in]) * invM
-					xxp       += Ni * vI * dtime
-			        vel_grad  += SMatrix{2,2}(dNi[1]*vI[1], dNi[1]*vI[2],
-   										      dNi[2]*vI[1], dNi[2]*vI[2])
-		   		end
-		   	 end
-			 vv[ip]      = vvp
-			 xx[ip]      = xxp
-		   	 D           = 0.5 * (vel_grad + vel_grad')
-		   	 strain[ip]  += dtime * D
-		   	 F[ip]       *= (Identity + vel_grad*dtime)
-		   	 J            = det(F[ip])
-		   	 # if ( J < 0. )
-		   		#  @printf("Troubled particle: %f %f \n", xx[ip][1], xx[ip][2])
-		   		#  println(F[ip])
-		   		#  @error("J is negative\n")
-		   	 # end
-	   	 vol[ip]     = J * vol0[ip]
-	   	 #@timeit "3" update_stress!(stress[ip],mat,strain[ip],F[ip],J,ip)
-	   	 stress[ip] = update_stress!(stress[ip],mat,strain[ip],D,F[ip],J,ip,dtime)
-	 end
-	end
+        @inbounds for s = 1:solidCount
+            # only deformable solids here
+            solid = solids[s]
+            if solid.rigid
+                continue
+            end
 
-    ##################################################
-	# update position of rigid solids
-    ##################################################
-	@inbounds for s = 1:solidCount
-		# only rigid solids here
-	  	solid = solids[s]
-		if !solid.rigid continue end
+            xx = solid.pos
+            mm = solid.mass
+            vv = solid.velocity
+            vol = solid.volume
+            vol0 = solid.volumeInitial
+            F = solid.deformationGradient
+            mat = solid.mat
+            stress = solid.stress
+            strain = solid.strain
 
-	  	xx    = solid.pos
-	  	vx    = solid.mat.vx
-	  	vy    = solid.mat.vy
-		#println(ve)
-        @inbounds for ip = 1:solid.parCount
-	      xx[ip]   += dtime * @SVector [vx,vy]
-	    end
-	end
+            @inbounds for ip = 1:solid.parCount
+                support = getShapeAndGradient(nearPoints, funcs, ders, ip, grid, solid, basis)
+                vel_grad = SMatrix{2,2}(0., 0., 0., 0.)
+                vvp = vv[ip]
+                xxp = xx[ip]
+                for i = 1:support
+                    in = nearPoints[i] # index of node 'i'
+                    Ni = funcs[i]
+                    dNi = @view ders[:, i]
+                    mI = nodalMass[in]
+                    if (mI > alg.tolerance)
+                        invM = 1.0 / mI
+                        vI = nodalMomentum[in] * invM
+                        vvp += Ni * (nodalMomentum[in] - nodalMomentum0[in]) * invM
+                        xxp += Ni * vI * dtime
+                        vel_grad += SMatrix{2,2}(dNi[1] * vI[1], dNi[1] * vI[2],
+                            dNi[2] * vI[1], dNi[2] * vI[2])
+                    end
+                end
+                vv[ip] = vvp
+                xx[ip] = xxp
+                D = 0.5 * (vel_grad + vel_grad')
+                strain[ip] += dtime * D
+                F[ip] *= (Identity + vel_grad * dtime)
+                J = det(F[ip])
+                # if ( J < 0. )
+                #  @printf("Troubled particle: %f %f \n", xx[ip][1], xx[ip][2])
+                #  println(F[ip])
+                #  @error("J is negative\n")
+                # end
+                vol[ip] = J * vol0[ip]
+                #@timeit "3" update_stress!(stress[ip],mat,strain[ip],F[ip],J,ip)
+                stress[ip] = update_stress!(stress[ip], mat, strain[ip], D, F[ip], J, ip, dtime)
+            end
+        end
 
-    #### CPDI specific #################################
-	### update corners
+        ##################################################
+        # update position of rigid solids
+        ##################################################
+        @inbounds for s = 1:solidCount
+            # only rigid solids here
+            solid = solids[s]
+            if !solid.rigid
+                continue
+            end
 
-	if ( typeof(basis) <: CPDIQ4Basis )
-		@inbounds for s = 1:solidCount
-			corner_coords = solids[s].nodes
-			@inbounds for c = 1:length(corner_coords)
-			  xc = corner_coords[c]
-			  getShapeFuncs(nearPointsLin,funcsLin, xc, grid, solids[s], linBasis)
-			  for i = 1:length(nearPointsLin)
-				  in = nearPointsLin[i]; # index of node ‘i’
-				  Ni = funcsLin[i]
-				  mI = nodalMass[in]
-				  if mI > 0.
-					xc   += (Ni * nodalMomentum[in] / mI) * dtime
-				  end
-			  end
-			end
-		end
-	end
+            xx = solid.pos
+            vx = solid.mat.vx
+            vy = solid.mat.vy
+            #println(ve)
+            @inbounds for ip = 1:solid.parCount
+                xx[ip] += dtime * @SVector [vx, vy]
+            end
+        end
 
-	if (counter%output.interval == 0)
-		if ( typeof(output) <: PyPlotOutput )
-			plotParticles(output,solids,[grid.lx, grid.ly],
-						[grid.nodeCountX, grid.nodeCountY],counter)
-			compute(fixes,t)
-		else
-			plotParticles_2D(output,solids,[grid.lx, grid.ly],
-						[grid.nodeCountX, grid.nodeCountY],counter)
-			compute(fixes,t)
-		end
-	end
+        #### CPDI specific #################################
+        ### update corners
 
-    t       += dtime
-    counter += 1
-  end # end of time loop
-  #@printf("Solving done \n")
-  closeFile(fixes)
+        if (typeof(basis) <: CPDIQ4Basis)
+            @inbounds for s = 1:solidCount
+                corner_coords = solids[s].nodes
+                @inbounds for c = 1:length(corner_coords)
+                    xc = corner_coords[c]
+                    getShapeFuncs(nearPointsLin, funcsLin, xc, grid, solids[s], linBasis)
+                    for i = 1:length(nearPointsLin)
+                        in = nearPointsLin[i] # index of node ‘i’
+                        Ni = funcsLin[i]
+                        mI = nodalMass[in]
+                        if mI > 0.
+                            xc += (Ni * nodalMomentum[in] / mI) * dtime
+                        end
+                    end
+                end
+            end
+        end
+
+        if (counter % output.interval == 0)
+            if (typeof(output) <: PyPlotOutput)
+                plotParticles(output, solids, [grid.lx, grid.ly],
+                    [grid.nodeCountX, grid.nodeCountY], counter)
+                compute(fixes, t)
+            else
+                plotParticles_2D(output, solids, [grid.lx, grid.ly],
+                    [grid.nodeCountX, grid.nodeCountY], counter)
+                compute(fixes, t)
+            end
+        end
+
+        t += dtime
+        counter += 1
+    end # end of time loop
+    #@printf("Solving done \n")
+    closeFile(fixes)
 end # end solve()

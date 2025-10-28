@@ -1,0 +1,120 @@
+@startuml MPM_Types
+skinparam classAttributeIconSize 0
+
+abstract class BodyForceType
+BodyForceType <|-- AxisAlignBodyForce1D
+class AxisAlignBodyForce1D {
+  +G : Float64
+  +E : Float64
+  +nu : Float64
+  +rho : Float64
+  +c : Float64
+  +lambda : Float64
+  +mu : Float64
+}
+BodyForceType <|-- ConstantBodyForce1D
+class ConstantBodyForce1D {
+  +g : Float64
+}
+BodyForceType <|-- ConstantBodyForce2D
+class ConstantBodyForce2D {
+  +g : StaticArraysCore.SVector{2}
+}
+BodyForceType <|-- ConstantBodyForce3D
+class ConstantBodyForce3D {
+  +g : StaticArraysCore.SVector{3}
+}
+BodyForceType <|-- VortexBodyForce2D
+class VortexBodyForce2D {
+  +G : Float64
+  +T : Float64
+  +Ri : Float64
+  +Ro : Float64
+  +rho0 : Float64
+  +mu : Float64
+  +R : Float64
+  +Rio2 : Float64
+  +Rio4 : Float64
+  +RimRo : Float64
+  +xcenter : Float64
+  +ycenter : Float64
+}
+
+abstract class MaterialType
+MaterialType <|-- ElasticMaterial
+class ElasticMaterial {
+  +E : Float64
+  +nu : Float64
+  +density : Float64
+  +lambda : Float64
+  +mu : Float64
+  ...
+}
+MaterialType <|-- ElastoPlasticMaterial
+class ElastoPlasticMaterial {
+  +E : Float64
+  +nu : Float64
+  +density : Float64
+  +lambda : Float64
+  +mu : Float64
+  ...
+}
+MaterialType <|-- JohnsonCookMaterial
+class JohnsonCookMaterial {
+  +E : Float64
+  +nu : Float64
+  +density : Float64
+  +A : Float64
+  +B : Float64
+  ...
+}
+MaterialType <|-- NeoHookeanMaterial
+class NeoHookeanMaterial {
+  +E : Float64
+  +nu : Float64
+  +density : Float64
+  +lambda : Float64
+  +mu : Float64
+  ...
+}
+MaterialType <|-- RigidMaterial
+class RigidMaterial {
+  +density : Float64
+}
+MaterialType <|-- VoceMaterial
+class VoceMaterial {
+  +E : Float64
+  +nu : Float64
+  +density : Float64
+  +A : Float64
+  +B : Float64
+  ...
+}
+
+abstract class BasisType
+BasisType <|-- CPDIQ4Basis
+BasisType <|-- CubicBsplineBasis
+BasisType <|-- LinearBasis
+BasisType <|-- QuadBsplineBasis
+
+abstract class OutputType
+OutputType <|-- OvitoOutput
+class OvitoOutput {
+  +interval : Int64
+  +dir : String
+  +outs : Vector{String}
+}
+OutputType <|-- PyPlotOutput
+class PyPlotOutput {
+  +interval : Int64
+  +dir : String
+  +figTitle : String
+  +figSize : Tuple{Float64, Float64}
+}
+OutputType <|-- VTKOutput
+class VTKOutput {
+  +interval : Int64
+  +dir : String
+  +outs : Vector{String}
+}
+@enduml

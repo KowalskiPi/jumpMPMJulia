@@ -45,74 +45,73 @@ function main()
 	poissonRatio  = 0.3
 
 
-    # create the grid of a 1 x 1 square, with noX x noY cells
-    noX   = 41
-    noY   = 41
-    grid  =  Grid2D(0.0,1.0,0.0,1.0,noX, noY)
-    #basis = LinearBasis()
-    basis = QuadBsplineBasis()
-    #basis = CubicBsplineBasis()
+   # create the grid of a 1 x 1 square, with noX x noY cells
+   noX   = 41
+   noY   = 41
+   grid  =  Grid2D(0.0,1.0,0.0,1.0,noX, noY)
+   #basis = LinearBasis()
+   basis = QuadBsplineBasis()
+   #basis = CubicBsplineBasis()
 
-    rad     = 0.2
-	 ppc     = 2
-    fOffset = grid.dx/ppc
-    dx      = fOffset
-    coords1 = buildParticleForCircle([0.2; 0.2], rad, fOffset)
-    coords2 = buildParticleForCircle([0.8; 0.8], rad, fOffset)
+   rad     = 0.2
+   ppc     = 2
+   fOffset = grid.dx/ppc
+   dx      = fOffset
+   coords1 = buildParticleForCircle([0.2; 0.2], rad, fOffset)
+   coords2 = buildParticleForCircle([0.8; 0.8], rad, fOffset)
 
-    material = ElasticMaterial(youngModulus,poissonRatio,density,0,0, length(coords1))
-    #material = ElasticMaterial(youngModulus,poissonRatio,density,0)
+   material = ElasticMaterial(youngModulus,poissonRatio,density,0,0, length(coords1))
+   #material = ElasticMaterial(youngModulus,poissonRatio,density,0)
 
-    solid1 = Solid2D(coords1,material)
-    solid2 = Solid2D(coords2,material)
+   solid1 = Solid2D(coords1,material)
+   solid2 = Solid2D(coords2,material)
 
-    solid1.mass          .*= dx * dx
-    solid1.volume        .= dx * dx
-    solid1.volumeInitial .= dx * dx
+   solid1.mass          .*= dx * dx
+   solid1.volume        .= dx * dx
+   solid1.volumeInitial .= dx * dx
 
-    solid2.mass          .*= dx * dx
-    solid2.volume        .= dx * dx
-    solid2.volumeInitial .= dx * dx
+   solid2.mass          .*= dx * dx
+   solid2.volume        .= dx * dx
+   solid2.volumeInitial .= dx * dx
 
-    v0 = SVector{2,Float64}([.1  .1])
+   v0 = SVector{2,Float64}([.1  .1])
 
-    # assign initial velocity for the particles
-    Solid.assign_velocity(solid1, v0)
-    Solid.assign_velocity(solid2,-v0)
+   # assign initial velocity for the particles
+   Solid.assign_velocity(solid1, v0)
+   Solid.assign_velocity(solid2,-v0)
 
-    solids = [solid1, solid2]
+   solids = [solid1, solid2]
 
-    @printf("Total number of material points: %d \n", solid1.parCount+solid2.parCount)
-    @printf("Total number of grid points:     %d\n", grid.nodeCount)
-    @printf("Mass : %+.6e \n", sum(solid1.mass)+sum(solid2.mass))
-    @printf("Vol  : %+.6e \n", sum(solid1.volume)+sum(solid2.volume))
-    @printf("Vol0 : %+.6e \n", sum(solid1.volumeInitial)+sum(solid2.volumeInitial))
+   @printf("Total number of material points: %d \n", solid1.parCount+solid2.parCount)
+   @printf("Total number of grid points:     %d\n", grid.nodeCount)
+   @printf("Mass : %+.6e \n", sum(solid1.mass)+sum(solid2.mass))
+   @printf("Vol  : %+.6e \n", sum(solid1.volume)+sum(solid2.volume))
+   @printf("Vol0 : %+.6e \n", sum(solid1.volumeInitial)+sum(solid2.volumeInitial))
 
-    Tf       = 3.5 #3.5e-0
-    interval = 10
-	 dtime    = 1e-3
+   Tf       = 3.5 #3.5e-0
+   interval = 10
+   dtime    = 1e-3
 
+   data               = Dict()
+   data["total_time"] = Tf
+   data["dt"]         = dtime
+   data["time"]       = 0.
+   #data["dirichlet_grid"] = [("bottom",(0,1,0))] # => fix bottom nodes on Y dir
 
-    data               = Dict()
-    data["total_time"] = Tf
-    data["dt"]         = dtime
-    data["time"]       = 0.
-    #data["dirichlet_grid"] = [("bottom",(0,1,0))] # => fix bottom nodes on Y dir
+   output1  = PyPlotOutput(interval,"twodisk-mpm/","Two Disks Collision",(4., 4.))
+   output2  = OvitoOutput(interval,"twodisks-mpm/",["pressure"])
+   fix      = EnergiesFix(solids,"twodisks-mpm/energies.txt")
+   bodyforce = ConstantBodyForce2D([0.,0.])
+   data["bodyforce"] =  bodyforce
+   algo1    = USL(1e-9)
+   algo2    = MUSL(1.)
 
-	 output1  = PyPlotOutput(interval,"twodisk-mpm/","Two Disks Collision",(4., 4.))
-	 output2  = OvitoOutput(interval,"twodisks-mpm/",["pressure"])
-	 fix      = EnergiesFix(solids,"twodisks-mpm/energies.txt")
-	 bodyforce = ConstantBodyForce2D([0.,0.])
- 	 data["bodyforce"] =  bodyforce
-    algo1    = USL(1e-9)
-    algo2    = MUSL(1.)
+   # @code_warntype solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,Tf,dtime)
 
- #    @code_warntype solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,Tf,dtime)
-
- #    reset_timer!()
-	# @time solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,Tf,dtime)
- #    print_timer()
-    solve_explicit_dynamics_2D(grid,solids,basis,algo1,output1,fix,data)
+   # reset_timer!()
+   # @time solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,Tf,dtime)
+   #    print_timer()
+   solve_explicit_dynamics_2D(grid,solids,basis,algo1,output1,fix,data)
    #  solve_explicit_dynamics_2D(grid,solids,basis,algo1,output2,fix,data)
    #  solve_explicit_dynamics_2D(grid,solids,basis,algo2,output2,fix,Tf,dtime)
 
