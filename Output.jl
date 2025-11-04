@@ -131,7 +131,7 @@ function plotParticles(plot::PyPlotOutput,solids,
 	pyPlot01[:set_yticks](collect(0.0:dyy:ylim),minor=true)
 
 	PyPlot.draw()
-	PyPlot.pause(0.05)
+	PyPlot.pause(1)
 	# PyPlot.savefig(fileName, bbox_inches="tight")
 	PyPlot.clf()
 	PyPlot.gcf()

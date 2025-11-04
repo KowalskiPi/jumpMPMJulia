@@ -18,6 +18,7 @@
 push!(LOAD_PATH,"./")
 #
 import PyPlot
+PyPlot.pygui(true)  # Enable interactive backend
 using Printf
 using LinearAlgebra
 using StaticArrays   # if not yet installed, in REPL, do import Pkg and Pkd.add("StaticArrays")
@@ -136,7 +137,7 @@ function main()
 	PyPlot.plot(fix.recordTime, color="red", fix.strEnergy, "-", label="\$ U \$", linewidth=1.0)
 	PyPlot.plot(fix.recordTime, color="green", fix.kinEnergy + fix.strEnergy, "-", label="\$ K+U \$", linewidth=1.0)
 	PyPlot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=8)
-	PyPlot.savefig("plot_2Disk_Julia.pdf")
+	# PyPlot.savefig("plot_2Disk_Julia.pdf")
    PyPlot.show()
 
 end
