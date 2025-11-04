@@ -54,7 +54,7 @@ function fix_Dirichlet_grid(grid::Grid2D,data;ghostcell=false)
     # grid.fixedNodes = a matrix of size (2,nodeCount)
  	for (bnd,fix) in dirichlet_grid
 
- 		if     bnd == "bottom" 
+ 		if bnd == "bottom" 
  		   grid.fixedNodes[:,grid.bottomNodes] .= fix
 
            if ghostcell == true
